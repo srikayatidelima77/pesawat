@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE MISSION – Petualangan Luar Angkasa</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Fredoka+One&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe Hands CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #050515;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        .font-fredoka { font-family: 'Fredoka One', cursive; }
+        
+        /* Custom Neon & Arcade Glass Effects */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.15);
+        }
+        .neon-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+        .neon-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 0 25px rgba(139, 92, 246, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.5);
+        }
+        .neon-btn:active {
+            transform: translateY(1px);
+        }
+        .neon-text-blue {
+            text-shadow: 0 0 10px #38bdf8, 0 0 20px #0284c7;
+        }
+        .neon-text-yellow {
+            text-shadow: 0 0 10px #fde047, 0 0 20px #eab308;
+        }
+        .pulse-camera {
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        /* Custom Math Board */
+        .math-card {
+            background: rgba(2, 6, 23, 0.85);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative flex flex-col justify-between overflow-hidden">
+
+    <!-- Canvas Utama Game -->
+    <canvas id="gameCanvas" class="absolute inset-0 z-0 w-full h-full"></canvas>
+
+    <!-- UI Overlay container -->
+    <div class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none">
+
+        <!-- NAVBAR / HUD HEADER -->
+        <header id="hudNav" class="w-full px-4 py-3 flex justify-between items-center glass-panel rounded-b-2xl pointer-events-auto hidden">
+            <!-- Profil Astronot -->
+            <div class="flex items-center space-x-3">
+                <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xl shadow-lg border-2 border-cyan-300">
+                    <i class="fas fa-user-astronaut"></i>
+                </div>
+                <div>
+                    <span class="text-xs text-cyan-300 font-bold uppercase tracking-wider block">Astronot</span>
+                    <span id="navPlayerName" class="font-fredoka text-lg text-white tracking-wide">Pemain</span>
+                </div>
+            </div>
+
+            <!-- Status Misi & Soal -->
+            <div class="flex flex-col items-center">
+                <div id="navMissionTitle" class="font-orbitron font-bold text-cyan-400 text-sm md:text-base tracking-widest uppercase">MISI 1: STASIUN SECTOR Alpha</div>
+                <div class="flex items-center space-x-2 mt-1">
+                    <span id="navQuestionBadge" class="bg-blue-900/80 text-blue-200 border border-blue-400/40 text-xs px-2.5 py-0.5 rounded-full font-bold">Soal 1/3 (LOTS)</span>
+                    <!-- Progress Bar Misi -->
+                    <div class="w-24 md:w-36 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                        <div id="missionProgressFill" class="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-500" style="width: 20%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skor & Nyawa -->
+            <div class="flex items-center space-x-5">
+                <!-- Nyawa -->
+                <div class="flex items-center space-x-1" id="livesContainer">
+                    <i class="fas fa-heart text-red-500 text-xl animate-bounce"></i>
+                    <i class="fas fa-heart text-red-500 text-xl animate-bounce"></i>
+                    <i class="fas fa-heart text-red-500 text-xl animate-bounce"></i>
+                </div>
+
+                <!-- Skor -->
+                <div class="bg-slate-900/90 border border-yellow-500/50 rounded-xl px-4 py-1 flex items-center space-x-2">
+                    <i class="fas fa-star text-yellow-400 text-lg"></i>
+                    <span id="navScore" class="font-orbitron text-xl font-bold text-yellow-400">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- PANEL SOAL / PERTANYAAN (POPUP PERTANYAAN) -->
+        <div id="questionOverlay" class="w-full flex justify-center px-4 mt-2 pointer-events-auto hidden">
+            <div class="math-card rounded-2xl p-4 max-w-2xl w-full text-center relative overflow-hidden">
+                <div class="absolute top-2 left-3 text-xs font-bold font-orbitron text-cyan-400 uppercase tracking-widest flex items-center gap-1">
+                    <i class="fas fa-microchip"></i> <span id="questionCategory">TUGAS: LOTS</span>
+                </div>
+                <div class="mt-4 mb-2">
+                    <h2 id="questionPrompt" class="text-lg md:text-xl font-bold text-white leading-relaxed">
+                        Hitung hasil penjumlahan bersusun di bawah ini!
+                    </h2>
+                </div>
+                <!-- Box Tampilan Matematika Bersusun -->
+                <div id="mathDisplayArea" class="bg-slate-950/90 rounded-xl p-3 my-2 border border-slate-800 inline-block min-w-[220px]">
+                    <!-- Rendered via JS -->
+                </div>
+                <p class="text-xs text-cyan-300 font-semibold mt-1">
+                    <i class="fas fa-rocket mr-1"></i> Arahkan pesawat ke asteroid dengan jawaban yang tepat!
+                </p>
+            </div>
+        </div>
+
+        <!-- AREA KAMERA / CONTROL STATUS (TOP RIGHT FLOATING) -->
+        <div id="camControlFloating" class="absolute top-20 right-4 pointer-events-auto flex flex-col items-end gap-2 hidden">
+            <button id="toggleCamBtn" onclick="toggleCamera()" class="bg-slate-900/90 border border-emerald-400/50 hover:border-emerald-400 text-emerald-400 text-xs px-3 py-2 rounded-xl flex items-center space-x-2 backdrop-blur-md transition-all shadow-lg">
+                <i class="fas fa-video"></i>
+                <span id="camBtnText">Aktifkan Kamera Gesture</span>
+            </button>
+
+            <!-- Video Preview Thumbnail & Status -->
+            <div id="videoContainer" class="relative w-28 h-24 bg-black/80 rounded-xl border-2 border-emerald-500 overflow-hidden hidden shadow-2xl">
+                <video id="webcam" class="w-full h-full object-cover transform -scale-x-100" playsinline></video>
+                <div id="handIndicator" class="absolute inset-0 flex items-center justify-center bg-black/40 text-emerald-400 text-xs font-bold text-center p-1">
+                    <i class="fas fa-hand-paper mr-1"></i> Mencari Tangan...
+                </div>
+            </div>
+            
+            <div class="bg-slate-900/80 backdrop-blur-md text-slate-300 text-[10px] px-2.5 py-1 rounded-lg border border-slate-700">
+                <i class="fas fa-keyboard text-cyan-400 mr-1"></i> Mouse / Touch / Panah Keyboard Aktif
+            </div>
+        </div>
+
+        <!-- NOTIFIKASI / FEEDBACK (POPUP BENAR/SALAH) -->
+        <div id="feedbackBanner" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-300 scale-0 opacity-0 z-50">
+            <div id="feedbackBox" class="rounded-3xl px-8 py-6 flex flex-col items-center justify-center text-center shadow-2xl border-4">
+                <i id="feedbackIcon" class="fas fa-check-circle text-6xl mb-2"></i>
+                <h2 id="feedbackTitle" class="font-fredoka text-3xl md:text-4xl">HEBAT!</h2>
+                <p id="feedbackSubtitle" class="font-bold text-lg mt-1">Jawaban Kamu Benar (+100 Poin)</p>
+            </div>
+        </div>
+
+        <!-- SCREEN 1: LOGIN / START MENU -->
+        <div id="startScreen" class="absolute inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md pointer-events-auto">
+            <div class="glass-panel max-w-lg w-full rounded-3xl p-8 flex flex-col items-center text-center relative overflow-hidden border-2 border-cyan-400/50">
+                <!-- Background Accent Glow -->
+                <div class="absolute -top-24 -left-24 w-48 h-48 bg-cyan-500/20 rounded-full blur-3xl"></div>
+                <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl"></div>
+
+                <div class="w-20 h-20 bg-gradient-to-tr from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center text-white text-4xl shadow-lg mb-4 border-2 border-cyan-200 animate-pulse">
+                    <i class="fas fa-user-astronaut"></i>
+                </div>
+
+                <h1 class="font-orbitron font-black text-2xl md:text-3xl text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-blue-200 to-purple-300 mb-2 tracking-wider">
+                    SPACE MISSION
+                </h1>
+                <p class="font-fredoka text-yellow-400 text-lg md:text-xl tracking-wide mb-6">
+                    PETUALANGAN LUAR ANGKASA
+                </p>
+
+                <div class="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-4 w-full mb-6 text-left">
+                    <label class="block text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2">
+                        <i class="fas fa-id-card mr-1"></i> Masukkan Nama Astronot:
+                    </label>
+                    <input type="text" id="playerNameInput" placeholder="Contoh: Budi Super" 
+                        class="w-full bg-slate-950 border-2 border-cyan-500/50 rounded-xl px-4 py-3 text-white font-bold text-base focus:outline-none focus:border-cyan-400 transition-colors placeholder-slate-600">
+                    <p class="text-[11px] text-slate-400 mt-2">
+                        <i class="fas fa-book-open text-cyan-400 mr-1"></i> Materi: Penjumlahan Bersusun Matematika Kelas 3 SD
+                    </p>
+                </div>
+
+                <!-- Fitur Kontrol Info -->
+                <div class="grid grid-cols-2 gap-3 w-full mb-6 text-xs text-left">
+                    <div class="bg-blue-950/40 border border-blue-800/40 p-2.5 rounded-xl flex items-center space-x-2">
+                        <i class="fas fa-camera text-emerald-400 text-lg"></i>
+                        <span>Kontrol Hand Gesture AI Webcam</span>
+                    </div>
+                    <div class="bg-purple-950/40 border border-purple-800/40 p-2.5 rounded-xl flex items-center space-x-2">
+                        <i class="fas fa-gamepad text-purple-400 text-lg"></i>
+                        <span>Mouse / Touch & Keyboards</span>
+                    </div>
+                </div>
+
+                <button onclick="startGame()" class="neon-btn w-full py-4 rounded-xl font-fredoka text-xl text-white tracking-wider flex items-center justify-center space-x-3">
+                    <span>MULAI MISI SEKARANG</span>
+                    <i class="fas fa-rocket"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- SCREEN 2: GAME OVER / VICTORY SCREEN -->
+        <div id="endScreen" class="absolute inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg pointer-events-auto hidden">
+            <div class="glass-panel max-w-lg w-full rounded-3xl p-8 flex flex-col items-center text-center relative border-2 border-yellow-400/50">
+                
+                <div id="endIconContainer" class="w-24 h-24 rounded-full flex items-center justify-center text-5xl mb-4 border-4 shadow-2xl">
+                    <i id="endIcon" class="fas fa-trophy"></i>
+                </div>
+
+                <h1 id="endTitle" class="font-fredoka text-3xl md:text-4xl text-yellow-300 mb-2">
+                    MISI SELESAI!
+                </h1>
+
+                <p id="endGreeting" class="text-white text-base font-semibold mb-4 px-2">
+                    Selamat Astronot <span id="endPlayerName" class="text-cyan-300 font-bold">Budi</span>! Kamu berhasil menyelamatkan Galaksi!
+                </p>
+
+                <!-- Status Akhir -->
+                <div class="bg-slate-900/90 border border-slate-700 rounded-2xl p-4 w-full mb-6 grid grid-cols-2 gap-4 text-center">
+                    <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                        <span class="text-xs text-slate-400 block font-bold">TOTAL SKOR</span>
+                        <span id="endFinalScore" class="font-orbitron text-2xl font-black text-yellow-400">1500</span>
+                    </div>
+                    <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                        <span class="text-xs text-slate-400 block font-bold">MISI DISELESAIKAN</span>
+                        <span id="endMissionsCompleted" class="font-orbitron text-2xl font-black text-emerald-400">5 / 5</span>
+                    </div>
+                </div>
+
+                <button onclick="restartGame()" class="neon-btn w-full py-4 rounded-xl font-fredoka text-xl text-white tracking-wider flex items-center justify-center space-x-2">
+                    <i class="fas fa-redo"></i>
+                    <span>MAIN LAGI</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SCRIPT UTAMA LOGIKA GAME & MEDIAPIPE -->
+    <script>
+        /* ==========================================================================
+           1. AUDIOSYNTHESIZER (Web Audio API - Bebas File Eksternal)
+           ========================================================================== */
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioCtx();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'correct') {
+                    // Sound Efek Benar (Melodi Ceria)
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                    osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'wrong') {
+                    // Sound Efek Salah (Tone Rendah)
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.setValueAtTime(110, now + 0.15);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'win') {
+                    // Sound Fanfare Kemenangan
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(554.37, now + 0.15);
+                    osc.frequency.setValueAtTime(659.25, now + 0.3);
+                    osc.frequency.setValueAtTime(880, now + 0.45);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+                    osc.start(now);
+                    osc.stop(now + 0.8);
+                } else if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                }
+            } catch(e) { console.log('Audio error', e); }
+        }
+
+        /* ==========================================================================
+           2. DATA SOAL MATEMATIKA KELAS 3 SD (5 MISI x 3 SOAL)
+              Setiap Misi: Soal 1 (LOTS), Soal 2 (MOTS), Soal 3 (HOTS)
+           ========================================================================== */
+        const GAME_MISSIONS = [
+            {
+                missionId: 1,
+                title: "MISI 1: STASIUN ALPHA (Penjumlahan Bersusun Panjang Tanpa Menyimpan)",
+                questions: [
+                    {
+                        type: "LOTS",
+                        prompt: "Bentuk panjang dari 143 + 215 adalah...",
+                        mathHtml: `<div class="text-left font-mono text-cyan-300 text-sm leading-relaxed">
+                                    143 = 100 + 40 + 3<br>
+                                    215 = 200 + 10 + 5<br>
+                                    <hr class="border-cyan-500/40 my-1">
+                                     Hasil Ratusan + Puluhan + Satuan?
+                                   </div>`,
+                        correct: 358,
+                        options: [358, 348, 258]
+                    },
+                    {
+                        type: "MOTS",
+                        prompt: "Berapa hasil penjumlahan bersusun panjang berikut?",
+                        mathHtml: `<div class="text-left font-mono text-yellow-300 text-sm leading-relaxed">
+                                    234 = 200 + 30 + 4<br>
+                                    152 = 100 + 50 + 2<br>
+                                    <hr class="border-yellow-500/40 my-1">
+                                    (...) = 300 + 80 + 6
+                                   </div>`,
+                        correct: 386,
+                        options: [386, 376, 486]
+                    },
+                    {
+                        type: "HOTS",
+                        prompt: "Asep punya 120 kelereng. Dino memberi 145 kelereng. Berapa total kelereng Asep?",
+                        mathHtml: `<div class="text-center font-mono text-emerald-300 text-base font-bold">
+                                    120 + 145 = ...
+                                   </div>`,
+                        correct: 265,
+                        options: [265, 275, 255]
+                    }
+                ]
+            },
+            {
+                missionId: 2,
+                title: "MISI 2: SABUK ASTEROID (Penjumlahan Bersusun Pendek Tanpa Menyimpan)",
+                questions: [
+                    {
+                        type: "LOTS",
+                        prompt: "Hitunglah penjumlahan bersusun pendek berikut:",
+                        mathHtml: `<div class="font-mono text-2xl text-cyan-300 tracking-widest text-right inline-block px-4">
+                                    2 4 1<br>
+                                  + 1 3 5<br>
+                                  <hr class="border-white border-t-2 my-1">
+                                    ? ? ?
+                                   </div>`,
+                        correct: 376,
+                        options: [376, 386, 366]
+                    },
+                    {
+                        type: "MOTS",
+                        prompt: "Selesaikan penjumlahan ratusan bersusun pendek:",
+                        mathHtml: `<div class="font-mono text-2xl text-yellow-300 tracking-widest text-right inline-block px-4">
+                                    4 2 6<br>
+                                  + 3 5 2<br>
+                                  <hr class="border-white border-t-2 my-1">
+                                    ? ? ?
+                                   </div>`,
+                        correct: 778,
+                        options: [778, 768, 788]
+                    },
+                    {
+                        type: "HOTS",
+                        prompt: "Lengkapi angka puluhan yang hilang: 3 [?] 4 + 2 1 3 = 5 5 7",
+                        mathHtml: `<div class="font-mono text-xl text-emerald-300 text-center">
+                                    Berapa nilai dari [?] tersebut?
+                                   </div>`,
+                        correct: 4,
+                        options: [4, 5, 3]
+                    }
+                ]
+            },
+            {
+                missionId: 3,
+                title: "MISI 3: PLANET NEBULA (Penjumlahan Bersusun Panjang Dengan Menyimpan)",
+                questions: [
+                    {
+                        type: "LOTS",
+                        prompt: "Pahami penjumlahan bersusun panjang menyimpan berikut:",
+                        mathHtml: `<div class="text-left font-mono text-cyan-300 text-xs md:text-sm">
+                                    167 = 100 + 60 + 7<br>
+                                    125 = 100 + 20 + 5<br>
+                                    <hr class="border-cyan-500/40 my-1">
+                                    Total = 200 + 80 + 12 = 200 + 90 + 2
+                                   </div>`,
+                        correct: 292,
+                        options: [292, 282, 291]
+                    },
+                    {
+                        type: "MOTS",
+                        prompt: "Hitung hasil penjumlahan berikut:",
+                        mathHtml: `<div class="text-left font-mono text-yellow-300 text-xs md:text-sm">
+                                    248 = 200 + 40 + 8<br>
+                                    135 = 100 + 30 + 5<br>
+                                    <hr class="border-yellow-500/40 my-1">
+                                    Berapa hasil akhirnya?
+                                   </div>`,
+                        correct: 383,
+                        options: [383, 373, 393]
+                    },
+                    {
+                        type: "HOTS",
+                        prompt: "Di stasiun luar angkasa terdapat 258 robot biru dan 174 robot merah. Berapa total robot?",
+                        mathHtml: `<div class="font-mono text-lg text-emerald-300 text-center">
+                                    258 + 174 = ...
+                                   </div>`,
+                        correct: 432,
+                        options: [432, 422, 442]
+                    }
+                ]
+            },
+            {
+                missionId: 4,
+                title: "MISI 4: GALAXY VORTEX (Penjumlahan Bersusun Pendek Dengan Menyimpan)",
+                questions: [
+                    {
+                        type: "LOTS",
+                        prompt: "Hitunglah bersusun pendek dengan menyimpan 1 angka ke puluhan:",
+                        mathHtml: `<div class="font-mono text-2xl text-cyan-300 tracking-widest text-right inline-block px-4">
+                                    3 5 8<br>
+                                  + 2 2 4<br>
+                                  <hr class="border-white border-t-2 my-1">
+                                    ? ? ?
+                                   </div>`,
+                        correct: 582,
+                        options: [582, 572, 581]
+                    },
+                    {
+                        type: "MOTS",
+                        prompt: "Hitunglah bersusun pendek menyimpan ke ratusan:",
+                        mathHtml: `<div class="font-mono text-2xl text-yellow-300 tracking-widest text-right inline-block px-4">
+                                    4 7 3<br>
+                                  + 2 6 5<br>
+                                  <hr class="border-white border-t-2 my-1">
+                                    ? ? ?
+                                   </div>`,
+                        correct: 738,
+                        options: [738, 728, 748]
+                    },
+                    {
+                        type: "HOTS",
+                        prompt: "Kapten membawa 486 pasokan makanan. Mengambil lagi 377 pasokan. Total pasokan sekarang?",
+                        mathHtml: `<div class="font-mono text-xl text-emerald-300 text-center">
+                                    486 + 377 = ?
+                                   </div>`,
+                        correct: 863,
+                        options: [863, 853, 873]
+                    }
+                ]
+            },
+            {
+                missionId: 5,
+                title: "MISI 5: INTI GALAKSI (Master Problem Solving Penjumlahan)",
+                questions: [
+                    {
+                        type: "LOTS",
+                        prompt: "Hitung penjumlahan 3 digit menyimpan dua kali:",
+                        mathHtml: `<div class="font-mono text-2xl text-cyan-300 tracking-widest text-right inline-block px-4">
+                                    5 6 9<br>
+                                  + 2 7 4<br>
+                                  <hr class="border-white border-t-2 my-1">
+                                    ? ? ?
+                                   </div>`,
+                        correct: 843,
+                        options: [843, 833, 853]
+                    },
+                    {
+                        type: "MOTS",
+                        prompt: "Berapa hasil dari 685 + 247?",
+                        mathHtml: `<div class="font-mono text-2xl text-yellow-300 tracking-widest text-right inline-block px-4">
+                                    6 8 5<br>
+                                  + 2 4 7<br>
+                                  <hr class="border-white border-t-2 my-1">
+                                    ? ? ?
+                                   </div>`,
+                        correct: 932,
+                        options: [932, 922, 942]
+                    },
+                    {
+                        type: "HOTS",
+                        prompt: "Terdapat dua bahan bakar roket: 498 liter dan 485 liter. Berapa total seluruh bahan bakar?",
+                        mathHtml: `<div class="font-mono text-xl text-emerald-300 text-center font-bold">
+                                    498 + 485 = ...
+                                   </div>`,
+                        correct: 983,
+                        options: [983, 973, 993]
+                    }
+                ]
+            }
+        ];
+
+        /* ==========================================================================
+           3. GAME ENGINE & STATE MANAGEMENT
+           ========================================================================== */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // State Game
+        let playerName = "Astronot";
+        let score = 0;
+        let lives = 3;
+        let currentMissionIdx = 0;
+        let currentQuestionIdx = 0;
+        let isGameRunning = false;
+        let isWaitingFeedback = false;
+
+        // Kontrol Posisi Pesawat
+        let shipX = 0;
+        let shipY = 0;
+        let targetShipX = 0;
+        let targetShipY = 0;
+
+        // Visual Entities
+        let stars = [];
+        let planets = [];
+        let asteroids = [];
+        let particles = [];
+
+        // Dynamic Resizing
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if (!isGameRunning) {
+                shipX = canvas.width / 2;
+                shipY = canvas.height - 120;
+                targetShipX = shipX;
+                targetShipY = shipY;
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Inisialisasi Starfield & Planet Latar Belakang 3D-Style
+        function initBackground() {
+            stars = [];
+            for (let i = 0; i < 150; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2 + 0.5,
+                    speed: Math.random() * 1.5 + 0.2,
+                    opacity: Math.random()
+                });
+            }
+
+            planets = [
+                { x: canvas.width * 0.15, y: canvas.height * 0.2, radius: 45, color: '#38bdf8', glow: 'rgba(56, 189, 248, 0.4)', speed: 0.15 },
+                { x: canvas.width * 0.85, y: canvas.height * 0.35, radius: 60, color: '#c084fc', glow: 'rgba(192, 132, 252, 0.3)', speed: 0.1 }
+            ];
+        }
+        initBackground();
+
+        /* ==========================================================================
+           4. GAME CONTROL & INTERACTION (MOUSE, TOUCH, KEYBOARD, HAND GESTURE)
+           ========================================================================== */
+        // Mouse Move Listener
+        window.addEventListener('mousemove', (e) => {
+            if (!isGameRunning || isCameraActive) return;
+            targetShipX = e.clientX;
+            targetShipY = e.clientY - 20;
+        });
+
+        // Touch Drag Listener
+        window.addEventListener('touchmove', (e) => {
+            if (!isGameRunning || isCameraActive) return;
+            if (e.touches.length > 0) {
+                targetShipX = e.touches[0].clientX;
+                targetShipY = e.touches[0].clientY - 30;
+            }
+        }, { passive: true });
+
+        // Keyboard Arrow & WASD Listener
+        const keysPressed = {};
+        window.addEventListener('keydown', (e) => { keysPressed[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keysPressed[e.code] = false; });
+
+        function handleKeyboardInput() {
+            if (!isGameRunning || isCameraActive) return;
+            const speed = 8;
+            if (keysPressed['ArrowLeft'] || keysPressed['KeyA']) targetShipX -= speed;
+            if (keysPressed['ArrowRight'] || keysPressed['KeyD']) targetShipX += speed;
+            if (keysPressed['ArrowUp'] || keysPressed['KeyW']) targetShipY -= speed;
+            if (keysPressed['ArrowDown'] || keysPressed['KeyS']) targetShipY += speed;
+
+            // Constrain
+            targetShipX = Math.max(40, Math.min(canvas.width - 40, targetShipX));
+            targetShipY = Math.max(100, Math.min(canvas.height - 60, targetShipY));
+        }
+
+        /* ==========================================================================
+           5. MEDIAPIPE HAND GESTURE INTEGRATION
+           ========================================================================== */
+        let camera = null;
+        let isCameraActive = false;
+        const videoElement = document.getElementById('webcam');
+        const handIndicator = document.getElementById('handIndicator');
+
+        function toggleCamera() {
+            initAudio();
+            playSound('click');
+            const camBtnText = document.getElementById('camBtnText');
+            const videoContainer = document.getElementById('videoContainer');
+
+            if (!isCameraActive) {
+                // Aktifkan Kamera
+                camBtnText.innerText = "Memulai Kamera...";
+                
+                const hands = new Hands({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+                });
+
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                hands.onResults(onHandResults);
+
+                camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await hands.send({ image: videoElement });
+                    },
+                    width: 320,
+                    height: 240
+                });
+
+                camera.start().then(() => {
+                    isCameraActive = true;
+                    camBtnText.innerText = "Matikan Kamera";
+                    videoContainer.classList.remove('hidden');
+                }).catch(err => {
+                    console.error("Camera access denied or error:", err);
+                    alert("Kamera tidak dapat diakses atau diizinkan. Menggunakan kontrol mouse/keyboard.");
+                    camBtnText.innerText = "Aktifkan Kamera Gesture";
+                });
+            } else {
+                // Matikan Kamera
+                if (camera) {
+                    camera.stop();
+                }
+                isCameraActive = false;
+                camBtnText.innerText = "Aktifkan Kamera Gesture";
+                videoContainer.classList.add('hidden');
+            }
+        }
+
+        function onHandResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                handIndicator.style.display = 'none';
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // Mengambil landmark Telapak Tangan / Index Finger Tip (Landmark 9 / 8)
+                const palmCenter = landmarks[9]; // Middle finger MCP
+                
+                // Invert X karena video di-mirror
+                const handX = (1 - palmCenter.x) * canvas.width;
+                const handY = palmCenter.y * canvas.height;
+
+                // Smooth Motion
+                targetShipX = handX;
+                targetShipY = handY;
+            } else {
+                handIndicator.style.display = 'flex';
+                handIndicator.innerHTML = `<i class="fas fa-hand-paper mr-1"></i> Tangan Tidak Terdeteksi`;
+            }
+        }
+
+        /* ==========================================================================
+           6. LOGIKA PERMAINAN & ASTEROID GENERATION
+           ========================================================================== */
+        function getCurrentQuestion() {
+            return GAME_MISSIONS[currentMissionIdx].questions[currentQuestionIdx];
+        }
+
+        function spawnQuestionAsteroids() {
+            asteroids = [];
+            const q = getCurrentQuestion();
+            const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+
+            const numOptions = shuffledOptions.length;
+            const segmentWidth = canvas.width / numOptions;
+
+            shuffledOptions.forEach((val, idx) => {
+                const posX = segmentWidth * idx + (segmentWidth / 2) + (Math.random() * 40 - 20);
+                const posY = -100 - (Math.random() * 80);
+                const speed = 1.2 + (currentMissionIdx * 0.3); // Kecepatan meningkat per misi
+
+                // Bentuk polygon asteroid
+                const points = [];
+                const numPoints = 8;
+                const radius = 45;
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = (i / numPoints) * Math.PI * 2;
+                    const r = radius * (0.8 + Math.random() * 0.4);
+                    points.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
+                }
+
+                asteroids.push({
+                    x: posX,
+                    y: posY,
+                    radius: radius,
+                    value: val,
+                    isCorrect: (val === q.correct),
+                    speedY: speed,
+                    speedX: (Math.random() - 0.5) * 0.5,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 0.02,
+                    points: points
+                });
+            });
+        }
+
+        function updateUI() {
+            // Update Player Name
+            document.getElementById('navPlayerName').innerText = playerName;
+            
+            // Update Mission Title & Progress
+            const mission = GAME_MISSIONS[currentMissionIdx];
+            document.getElementById('navMissionTitle').innerText = mission.title;
+            
+            const q = getCurrentQuestion();
+            document.getElementById('navQuestionBadge').innerText = `Soal ${currentQuestionIdx + 1}/3 (${q.type})`;
+            
+            // Progress Bar
+            const totalQuestionsSoFar = (currentMissionIdx * 3) + currentQuestionIdx + 1;
+            const progressPct = (totalQuestionsSoFar / 15) * 100;
+            document.getElementById('missionProgressFill').style.width = `${progressPct}%`;
+
+            // Score & Lives
+            document.getElementById('navScore').innerText = score;
+            
+            const livesContainer = document.getElementById('livesContainer');
+            livesContainer.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                if (i < lives) {
+                    livesContainer.innerHTML += `<i class="fas fa-heart text-red-500 text-xl animate-bounce"></i>`;
+                } else {
+                    livesContainer.innerHTML += `<i class="fas fa-heart text-slate-700 text-xl"></i>`;
+                }
+            }
+
+            // Question Display
+            document.getElementById('questionCategory').innerText = `TUGAS: ${q.type} (MISI ${currentMissionIdx + 1})`;
+            document.getElementById('questionPrompt').innerText = q.prompt;
+            document.getElementById('mathDisplayArea').innerHTML = q.mathHtml;
+        }
+
+        function triggerFeedback(isCorrect, val) {
+            isWaitingFeedback = true;
+            const feedbackBanner = document.getElementById('feedbackBanner');
+            const feedbackBox = document.getElementById('feedbackBox');
+            const feedbackIcon = document.getElementById('feedbackIcon');
+            const feedbackTitle = document.getElementById('feedbackTitle');
+            const feedbackSubtitle = document.getElementById('feedbackSubtitle');
+
+            if (isCorrect) {
+                playSound('correct');
+                score += 100;
+                feedbackBox.className = "rounded-3xl px-8 py-6 flex flex-col items-center justify-center text-center shadow-2xl border-4 bg-emerald-950/90 border-emerald-400 text-emerald-300";
+                feedbackIcon.className = "fas fa-check-circle text-6xl mb-2 text-emerald-400 animate-bounce";
+                feedbackTitle.innerText = "JAWABAN BENAR!";
+                feedbackSubtitle.innerText = `Hebat ${playerName}! +100 Poin diselamatkan!`;
+                
+                // Particle Burst Effect
+                createExplosion(shipX, shipY, '#34d399', 30);
+            } else {
+                playSound('wrong');
+                lives--;
+                feedbackBox.className = "rounded-3xl px-8 py-6 flex flex-col items-center justify-center text-center shadow-2xl border-4 bg-red-950/90 border-red-500 text-red-200";
+                feedbackIcon.className = "fas fa-times-circle text-6xl mb-2 text-red-500 animate-pulse";
+                feedbackTitle.innerText = "KURANG TEPAT!";
+                feedbackSubtitle.innerText = `Angka ${val} bukan jawaban yang benar. Hati-hati!`;
+
+                createExplosion(shipX, shipY, '#f87171', 30);
+            }
+
+            // Show Popup
+            feedbackBanner.classList.remove('scale-0', 'opacity-0');
+            feedbackBanner.classList.add('scale-100', 'opacity-100');
+
+            setTimeout(() => {
+                feedbackBanner.classList.remove('scale-100', 'opacity-100');
+                feedbackBanner.classList.add('scale-0', 'opacity-0');
+                
+                isWaitingFeedback = false;
+
+                // Cek Game State Next
+                if (lives <= 0) {
+                    endGame(false);
+                } else if (isCorrect) {
+                    currentQuestionIdx++;
+                    if (currentQuestionIdx >= 3) {
+                        currentQuestionIdx = 0;
+                        currentMissionIdx++;
+                        if (currentMissionIdx >= GAME_MISSIONS.length) {
+                            endGame(true);
+                            return;
+                        }
+                    }
+                    updateUI();
+                    spawnQuestionAsteroids();
+                } else {
+                    // Jika salah, reset posisi asteroid agar bisa mencoba lagi
+                    updateUI();
+                    spawnQuestionAsteroids();
+                }
+            }, 1800);
+        }
+
+        /* ==========================================================================
+           7. VISUAL EFFECTS & DRAWING (CANVAS RENDERER)
+           ========================================================================== */
+        function createExplosion(x, y, color, count = 20) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: Math.random() * 5 + 2,
+                    color: color,
+                    alpha: 1,
+                    decay: Math.random() * 0.03 + 0.01
+                });
+            }
+        }
+
+        function drawShip(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Ship Engine Flame (Animasi)
+            const flameHeight = 15 + Math.random() * 10;
+            ctx.beginPath();
+            ctx.moveTo(-10, 20);
+            ctx.lineTo(0, 20 + flameHeight);
+            ctx.lineTo(10, 20);
+            ctx.fillStyle = Math.random() > 0.5 ? '#f59e0b' : '#ef4444';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#f59e0b';
+            ctx.fill();
+
+            // Ship Wings
+            ctx.beginPath();
+            ctx.moveTo(0, -30);
+            ctx.lineTo(-30, 20);
+            ctx.lineTo(-12, 15);
+            ctx.lineTo(0, 22);
+            ctx.lineTo(12, 15);
+            ctx.lineTo(30, 20);
+            ctx.closePath();
+            
+            const gradient = ctx.createLinearGradient(0, -30, 0, 20);
+            gradient.addColorStop(0, '#38bdf8');
+            gradient.addColorStop(0.5, '#0284c7');
+            gradient.addColorStop(1, '#0f172a');
+            ctx.fillStyle = gradient;
+            ctx.strokeStyle = '#7dd3fc';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#38bdf8';
+            ctx.fill();
+            ctx.stroke();
+
+            // Cockpit Canopy Glass
+            ctx.beginPath();
+            ctx.ellipse(0, -5, 8, 14, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#e0f2fe';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ffffff';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawAsteroid(ast) {
+            ctx.save();
+            ctx.translate(ast.x, ast.y);
+            ctx.rotate(ast.rotation);
+
+            // Asteroid Body
+            ctx.beginPath();
+            ctx.moveTo(ast.points[0].x, ast.points[0].y);
+            for (let i = 1; i < ast.points.length; i++) {
+                ctx.lineTo(ast.points[i].x, ast.points[i].y);
+            }
+            ctx.closePath();
+
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#0284c7';
+            ctx.fill();
+            ctx.stroke();
+
+            // Unrotate for clean text drawing
+            ctx.rotate(-ast.rotation);
+
+            // Answer Text inside Asteroid
+            ctx.font = '900 24px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#fde047';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#eab308';
+            ctx.fillText(ast.value, 0, 0);
+
+            ctx.restore();
+        }
+
+        /* ==========================================================================
+           8. MAIN GAME LOOP
+           ========================================================================== */
+        function gameLoop() {
+            // Clear Screen
+            ctx.fillStyle = '#050515';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Render Stars (Latar Belakang)
+            ctx.fillStyle = '#ffffff';
+            stars.forEach(star => {
+                ctx.globalAlpha = star.opacity;
+                ctx.fillRect(star.x, star.y, star.size, star.size);
+                star.y += star.speed;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+            });
+            ctx.globalAlpha = 1.0;
+
+            // 2. Render Planets
+            planets.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 25;
+                ctx.shadowColor = p.glow;
+                ctx.fill();
+                p.y += p.speed;
+                if (p.y - p.radius > canvas.height) {
+                    p.y = -p.radius * 2;
+                    p.x = Math.random() * canvas.width;
+                }
+            });
+
+            if (isGameRunning) {
+                // Keyboard Input Check
+                handleKeyboardInput();
+
+                // Smooth Ship Interpolation
+                shipX += (targetShipX - shipX) * 0.15;
+                shipY += (targetShipY - shipY) * 0.15;
+
+                // Render Ship
+                drawShip(shipX, shipY);
+
+                // Update & Render Asteroids
+                if (!isWaitingFeedback) {
+                    asteroids.forEach(ast => {
+                        ast.y += ast.speedY;
+                        ast.x += ast.speedX;
+                        ast.rotation += ast.rotSpeed;
+
+                        // Respawn jika jatuh melewati layar bawah
+                        if (ast.y - ast.radius > canvas.height) {
+                            ast.y = -60;
+                            ast.x = Math.random() * (canvas.width - 100) + 50;
+                        }
+
+                        drawAsteroid(ast);
+
+                        // Tabrakan Collision Detection (Ship vs Asteroid)
+                        const dx = shipX - ast.x;
+                        const dy = shipY - ast.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < ast.radius + 25) {
+                            triggerFeedback(ast.isCorrect, ast.value);
+                        }
+                    });
+                } else {
+                    // Render Asteroids statis saat feedback
+                    asteroids.forEach(ast => drawAsteroid(ast));
+                }
+
+                // Render Particles (Explosion FX)
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fill();
+
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= p.decay;
+
+                    if (p.alpha <= 0) particles.splice(i, 1);
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ==========================================================================
+           9. GAME CONTROL FLOW & NAVIGATION
+           ========================================================================== */
+        function startGame() {
+            initAudio();
+            playSound('click');
+
+            const nameInput = document.getElementById('playerNameInput').value.trim();
+            if (nameInput !== "") {
+                playerName = nameInput;
+            } else {
+                playerName = "Astronot Cilik";
+            }
+
+            // Reset Stats
+            score = 0;
+            lives = 3;
+            currentMissionIdx = 0;
+            currentQuestionIdx = 0;
+            isGameRunning = true;
+            isWaitingFeedback = false;
+
+            // UI Adjustments
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('endScreen').classList.add('hidden');
+            document.getElementById('hudNav').classList.remove('hidden');
+            document.getElementById('questionOverlay').classList.remove('hidden');
+            document.getElementById('camControlFloating').classList.remove('hidden');
+
+            shipX = canvas.width / 2;
+            shipY = canvas.height - 120;
+            targetShipX = shipX;
+            targetShipY = shipY;
+
+            updateUI();
+            spawnQuestionAsteroids();
+        }
+
+        function endGame(isWin) {
+            isGameRunning = false;
+            
+            document.getElementById('hudNav').classList.add('hidden');
+            document.getElementById('questionOverlay').classList.add('hidden');
+            document.getElementById('endScreen').classList.remove('hidden');
+
+            const endIconContainer = document.getElementById('endIconContainer');
+            const endIcon = document.getElementById('endIcon');
+            const endTitle = document.getElementById('endTitle');
+            const endGreeting = document.getElementById('endGreeting');
+
+            document.getElementById('endPlayerName').innerText = playerName;
+            document.getElementById('endFinalScore').innerText = score;
+            document.getElementById('endMissionsCompleted').innerText = isWin ? "5 / 5" : `${currentMissionIdx} / 5`;
+
+            if (isWin) {
+                playSound('win');
+                endIconContainer.className = "w-24 h-24 rounded-full flex items-center justify-center text-5xl mb-4 border-4 shadow-2xl bg-gradient-to-tr from-yellow-400 to-amber-600 border-yellow-200 text-slate-950 animate-bounce";
+                endIcon.className = "fas fa-trophy";
+                endTitle.innerText = "MISI AGUNG SELESAI!";
+                endTitle.className = "font-fredoka text-3xl md:text-4xl text-yellow-300 mb-2 neon-text-yellow";
+                endGreeting.innerHTML = `Luar Biasa, Astronot <span class="text-cyan-300 font-bold">${playerName}</span>! Kamu berhasil menyelesaikan seluruh 5 misi matematika dan menyelamatkan galaksi!`;
+            } else {
+                playSound('wrong');
+                endIconContainer.className = "w-24 h-24 rounded-full flex items-center justify-center text-5xl mb-4 border-4 shadow-2xl bg-gradient-to-tr from-red-600 to-slate-800 border-red-400 text-white";
+                endIcon.className = "fas fa-space-shuttle transform rotate-180";
+                endTitle.innerText = "PESAWAT RUSAK!";
+                endTitle.className = "font-fredoka text-3xl md:text-4xl text-red-400 mb-2";
+                endGreeting.innerHTML = `Jangan menyerah, Astronot <span class="text-cyan-300 font-bold">${playerName}</span>! Ayo berlatih penjumlahan bersusun lagi dan coba kembali!`;
+            }
+        }
+
+        function restartGame() {
+            playSound('click');
+            document.getElementById('endScreen').classList.add('hidden');
+            document.getElementById('startScreen').classList.remove('hidden');
+        }
+
+        // Jalankan Loop Utama setelah Window Load
+        window.onload = function() {
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
